@@ -32,6 +32,8 @@ conn = sqlite3.connect(':memory:')
 # Initialize Cart
 cart = []
 
+# Global variables to store the logged-in user's information
+logged_in_user = {}
 
 def Database():
     global conn, cursor
@@ -42,7 +44,7 @@ def Database():
         "password TEXT(20), firstname TEXT(20), lastname TEXT(20), date_of_birth DATE, email_address TEXT(30), phone_number TEXT(20))")
     cursor.execute(
         "CREATE TABLE IF NOT EXISTS `food` (food_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, food_name TEXT(30), "
-        "description TEXT(50), price float, food_type TEXT(10), admin_id INTEGER, FOREIGN KEY(admin_id) REFERENCES admin(admin_id) )")
+        "description TEXT(50), price float, food_type TEXT(10),food_calories INTEGER, admin_id INTEGER, FOREIGN KEY(admin_id) REFERENCES admin(admin_id) )")
     cursor.execute(
         "CREATE TABLE IF NOT EXISTS `review` (review_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, customer_id INTEGER,"
         "review TEXT(20),rating INTEGER, review_date DATE, FOREIGN KEY (customer_id) REFERENCES customer(customer_id))")
@@ -51,7 +53,7 @@ def Database():
         "order_id INTEGER, total_price FLAOT, FOREIGN KEY(order_id) REFERENCES orders(order_id))")
     cursor.execute(
         "CREATE TABLE IF NOT EXISTS `order` (order_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, order_date DATE, "
-        "food_id INTEGER, quantity INTEGER, total_price FLAOT, customer_id INTEGER, FOREIGN KEY(food_id) REFERENCES food(food_id), FOREIGN KEY(customer_id) REFERENCES customer(customer_id))")
+        "food_id INTEGER, quantity INTEGER, total_price FLAOT, total_food_calories INTEGER, customer_id INTEGER, FOREIGN KEY(food_id) REFERENCES food(food_id), FOREIGN KEY(customer_id) REFERENCES customer(customer_id))")
     cursor.execute(
         "CREATE TABLE IF NOT EXISTS `admin`(admin_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, username TEXT(20), "
         "password TEXT(20), firstname TEXT(20), lastname TEXT(20), date_of_birth DATE, email_address TEXT(30), phone_number TEXT(20))")
@@ -77,6 +79,11 @@ def Home():
     btn_view_menu.bind("<Enter>", lambda e: btn_view_menu.config(bg="light green"))
     btn_view_menu.bind("<Leave>", lambda e: btn_view_menu.config(bg="green"))
     btn_view_menu.pack(pady=20)
+
+    btn_view_order_history = Button(HomeFrame, text="View Order History", font=('times new roman', 16), width=20, command=ViewOrderHistory, bg='blue', fg='white', relief='raised')
+    btn_view_order_history.bind("<Enter>", lambda e: btn_view_order_history.config(bg="light blue"))
+    btn_view_order_history.bind("<Leave>", lambda e: btn_view_order_history.config(bg="blue"))
+    btn_view_order_history.pack(pady=20)
 
     btn_logout = Button(HomeFrame, text="Logout", font=('times new roman', 16), width=20, command=Logout, bg='#7E84F7', fg='white', relief='raised')
     btn_logout.bind("<Enter>", lambda e: btn_logout.config(bg="#B8BEED"))
@@ -145,8 +152,13 @@ def add_food_window():
     entry_food_type = Entry(add_food_window, font=('times new roman', 16))
     entry_food_type.grid(row=3, column=1, padx=10, pady=10, sticky="w")
 
+    label_food_calories = Label(add_food_window, text="Food Calories:", font=('times new roman', 16))
+    label_food_calories.grid(row=4, column=0, padx=10, pady=10, sticky="e")
+    entry_food_calories = Entry(add_food_window, font=('times new roman', 16))
+    entry_food_calories.grid(row=4, column=1, padx=10, pady=10, sticky="w")
+
     # Create a button to add the food
-    btn_add_food = Button(add_food_window, text="Add Food", font=('times new roman', 16), command=lambda: add_food(entry_food_name, entry_description, entry_price, entry_food_type), bg='#E69312', fg='white')
+    btn_add_food = Button(add_food_window, text="Add Food", font=('times new roman', 16), command=lambda: add_food(entry_food_name, entry_description, entry_price, entry_food_type, entry_food_calories), bg='#E69312', fg='white')
     btn_add_food.bind("<Enter>", lambda e: btn_add_food.config(bg="#FFA314"))
     btn_add_food.bind("<Leave>", lambda e: btn_add_food.config(bg="#E69312"))
     btn_add_food.grid(row=5, columnspan=2, pady=20)
@@ -165,7 +177,7 @@ def FoodDashboard():
 
         try:
             # Construct the SQL query based on the selected food type
-            sql_query = "SELECT food_id, food_name, description, price, food_type FROM food"
+            sql_query = "SELECT food_id, food_name, description, price, food_type,food_calories FROM food"
             if food_type and food_type != "all":
                 sql_query += f" WHERE food_type = '{food_type}'"
             cursor.execute(sql_query)
@@ -173,8 +185,8 @@ def FoodDashboard():
 
             # Populate the treeview with fetched data
             for row in rows:
-                food_id, food_name, description, price, food_type = row
-                food_treeview.insert("", "end", values=(food_id, food_name, description, price, food_type), tags=(food_id,))
+                food_id, food_name, description, price, food_type, food_calories = row
+                food_treeview.insert("", "end", values=(food_id, food_name, description, price, food_type, food_calories), tags=(food_id,))
         except sqlite3.Error as e:
             messagebox.showerror("Error", f"Error fetching food data: {e}")
 
@@ -247,18 +259,20 @@ def FoodDashboard():
     btn_filter.pack(side="left", padx=10)
 
     # Create a Treeview widget to display food items
-    food_treeview = ttk.Treeview(FoodFrame, columns=("Food ID", "Food Name", "Description", "Price", "Food Type"),
+    food_treeview = ttk.Treeview(FoodFrame, columns=("Food ID", "Food Name", "Description", "Price", "Food Type","Food Calories"),
                                  show='headings', height=20, style="Treeview")
     food_treeview.heading("Food ID", text="Food ID")
     food_treeview.heading("Food Name", text="Food Name")
     food_treeview.heading("Description", text="Description")
     food_treeview.heading("Price", text="Price")
     food_treeview.heading("Food Type", text="Food Type")
+    food_treeview.heading("Food Calories", text="Food Calories")
     food_treeview.column("Food ID", width=100, anchor="center")
     food_treeview.column("Food Name", width=150, anchor="center")
     food_treeview.column("Description", width=300, anchor="center")
     food_treeview.column("Price", width=100, anchor="center")
     food_treeview.column("Food Type", width=100, anchor="center")
+    food_treeview.column("Food Calories", width=100, anchor="center")
     food_treeview.pack(pady=20)
 
     # Populate the treeview with food data from the database
@@ -267,19 +281,33 @@ def FoodDashboard():
     food_treeview.pack(fill="both", expand=True)
     update_food_treeview()
 
-def add_food(entry_food_name, entry_description, entry_price, entry_food_type):
+def add_food(entry_food_name, entry_description, entry_price, entry_food_type, entry_food_calories):
     # Get the values entered by the user
     food_name = entry_food_name.get()
     description = entry_description.get()
     price = entry_price.get()
     food_type = entry_food_type.get()
+    food_calories = entry_food_calories.get()
 
     # Check if all fields are filled
-    if food_name and description and price and food_type:
+    if food_name and description and price and food_type and food_calories:
         try:
+            # Fetch the admin ID based on the logged-in user information
+            query = """
+                        SELECT admin_id
+                        FROM admin
+                        WHERE username = ? AND password = ?
+                    """
+            cursor.execute(query, (logged_in_user['username'], logged_in_user['password']))
+            admin_data = cursor.fetchone()
+
+            if not admin_data:
+                raise sqlite3.Error("Admin not found")
+
+            admin_id = admin_data[0]
             # Insert the food details into the database
-            cursor.execute("INSERT INTO food (food_name, description, price, food_type) VALUES (?, ?, ?, ?)",
-                           (food_name, description, price, food_type))
+            cursor.execute("INSERT INTO food (food_name, description, price, food_type, food_calories, admin_id) VALUES (?, ?, ?, ?, ?, ?)",
+                           (food_name, description, price, food_type, food_calories, admin_id))
             conn.commit()  # Commit the transaction
             messagebox.showinfo("Success", "Food successfully added!")
 
@@ -300,7 +328,7 @@ def update_food_window():
     if food_id:
         try:
             # Fetch the selected food details from the database
-            cursor.execute("SELECT food_name, description, price, food_type FROM food WHERE food_id=?", (food_id,))
+            cursor.execute("SELECT food_name, description, price, food_type, food_calories FROM food WHERE food_id=?", (food_id,))
             food_details = cursor.fetchone()
             if food_details:
                 # Create a new window for updating food
@@ -332,11 +360,17 @@ def update_food_window():
                 entry_food_type.grid(row=3, column=1, padx=10, pady=10)
                 entry_food_type.insert(0, food_details[3])  # Food Type
 
+                label_food_calories = Label(update_food_window, text="Food Calories:", font=('times new roman', 16))
+                label_food_calories.grid(row=4, column=0, padx=10, pady=10, sticky="w")
+                entry_food_calories = Entry(update_food_window, font=('times new roman', 16))
+                entry_food_calories.grid(row=4, column=1, padx=10, pady=10)
+                entry_food_calories.insert(0, food_details[4])  # Food Calories
+
                 # Create a button to update the food
-                btn_update_food = Button(update_food_window, text="Update Food", font=('times new roman', 16), command=lambda: update_food(food_id, entry_food_name.get(), entry_description.get(), entry_price.get(), entry_food_type.get()), bg='blue', fg='white')
+                btn_update_food = Button(update_food_window, text="Update Food", font=('times new roman', 16), command=lambda: update_food(food_id, entry_food_name.get(), entry_description.get(), entry_price.get(), entry_food_type.get(), entry_food_calories.get()), bg='blue', fg='white')
                 btn_update_food.bind("<Enter>", lambda e: btn_update_food.config(bg="light blue"))
                 btn_update_food.bind("<Leave>", lambda e: btn_update_food.config(bg="blue"))
-                btn_update_food.grid(row=4, columnspan=2, pady=20)
+                btn_update_food.grid(row=5, columnspan=2, pady=20)
             else:
                 messagebox.showerror("Error", "Selected food details not found.")
         except sqlite3.Error as e:
@@ -355,10 +389,10 @@ def get_selected_food_id():
     else:
         messagebox.showerror("Error", "Please select a food item.")
 
-def update_food(food_id, food_name, description, price, food_type):
+def update_food(food_id, food_name, description, price, food_type, food_calories):
     try:
-        cursor.execute("UPDATE food SET food_name=?, description=?, price=?, food_type=? WHERE food_id=?",
-                       (food_name, description, price, food_type, food_id))
+        cursor.execute("UPDATE food SET food_name=?, description=?, price=?, food_type=?, food_calories=? WHERE food_id=?",
+                       (food_name, description, price, food_type, food_calories, food_id))
         conn.commit()  # Commit the transaction
         messagebox.showinfo("Success", "Food details updated successfully!")
 
@@ -380,7 +414,7 @@ def update_food_treeview():
 
     try:
         # Fetch data from the database
-        cursor.execute("SELECT food_id, food_name, description, price, food_type FROM food")
+        cursor.execute("SELECT food_id, food_name, description, price, food_type, food_calories FROM food")
         rows = cursor.fetchall()
 
         # Populate the treeview with fetched data
@@ -399,20 +433,20 @@ def delete_food():
 
     # Get the item's values
     item_values = food_treeview.item(selected_item, 'values')
-    food_name = item_values[0]
+    food_id = item_values[0]
 
     # Prompt the user for confirmation
-    confirm = messagebox.askyesno("Confirm Deletion", f"Are you sure you want to delete '{food_name}'?")
+    confirm = messagebox.askyesno("Confirm Deletion", f"Are you sure you want to delete '{food_id}'?")
 
     if confirm:
         try:
             # Delete the selected item from the database table
-            cursor.execute("DELETE FROM food WHERE food_name=?", (food_name,))
+            cursor.execute("DELETE FROM food WHERE food_id=?", (food_id,))
             conn.commit()  # Commit the transaction
 
             # Delete the selected item from the Treeview
             food_treeview.delete(selected_item)
-            messagebox.showinfo("Success", f"'{food_name}' deleted successfully.")
+            messagebox.showinfo("Success", f"'{food_id}' deleted successfully.")
         except sqlite3.Error as e:
             messagebox.showerror("Error", f"Error deleting food: {e}")
 
@@ -458,12 +492,13 @@ def search_food_window():
     btn_back.pack(side='bottom', padx=10)
 
     # Create a Treeview to display search results
-    treeview_search = ttk.Treeview(search_window, columns=("Food ID", "Food Name", "Description", "Price", "Food Type"), show="headings")
+    treeview_search = ttk.Treeview(search_window, columns=("Food ID", "Food Name", "Description", "Price", "Food Type", "Food Calories"), show="headings")
     treeview_search.heading("Food ID", text="Food ID")
     treeview_search.heading("Food Name", text="Food Name")
     treeview_search.heading("Description", text="Description")
     treeview_search.heading("Price", text="Price")
     treeview_search.heading("Food Type", text="Food Type")
+    treeview_search.heading("Food Calories", text="Food Calories")
     treeview_search.pack(pady=10)
 
     # Run the main loop for the search window
@@ -505,6 +540,11 @@ def ViewFoodMenu():
     btn_add_to_cart.bind("<Leave>", lambda e: btn_add_to_cart.config(bg="yellow"))
     btn_add_to_cart.pack(side="left", padx=10)
 
+    btn_back = Button(Menu_options_frame, text="Back to Home", font=('times new roman', 16), width=15, command=Home, bg='#E061ED', fg='black')
+    btn_back.bind("<Enter>", lambda e: btn_back.config(bg="#F168FF"))
+    btn_back.bind("<Leave>", lambda e: btn_back.config(bg="#E061ED"))
+    btn_back.pack(side="left", padx=10)
+
     btn_Logout = Button(Menu_options_frame, text="Logout", font=('times new roman', 16), width=15, command=Logout, bg='#7E84F7', fg='black')
     btn_Logout.bind("<Enter>", lambda e: btn_Logout.config(bg="#B8BEED"))
     btn_Logout.bind("<Leave>", lambda e: btn_Logout.config(bg="#7E84F7"))
@@ -515,7 +555,7 @@ def ViewFoodMenu():
     style.configure("Treeview", font=('times new roman', 14))  # Change body font
 
     # Define columns
-    columns = ("Food ID", "Food Name", "Description", "Price", "Food Type")
+    columns = ("Food ID", "Food Name", "Description", "Price", "Food Type", "Food Calories")
 
     # Create Treeview widget
     menu_treeview = ttk.Treeview(MenuFrame, columns=columns, show="headings")
@@ -524,7 +564,7 @@ def ViewFoodMenu():
     menu_treeview.heading("Description", text="Description")
     menu_treeview.heading("Price", text="Price")
     menu_treeview.heading("Food Type", text="Food Type")
-
+    menu_treeview.heading("Food Calories", text="Food Calories")
     menu_treeview.pack(fill="both", expand=True)
 
     # Food type filter buttons
@@ -557,14 +597,14 @@ def ViewFoodMenu():
 
         try:
             # Construct the SQL query based on the search query
-            sql_query = "SELECT food_id, food_name, description, price, food_type FROM food WHERE food_name LIKE ?"
+            sql_query = "SELECT food_id, food_name, description, price, food_type, food_calories FROM food WHERE food_name LIKE ?"
             cursor.execute(sql_query, ('%' + query + '%',))
             rows = cursor.fetchall()
 
             # Populate the treeview with fetched data
             for row in rows:
-                food_id, food_name, description, price, food_type = row
-                menu_treeview.insert("", "end", values=(food_id, food_name, description, price, food_type), tags=(food_id,))
+                food_id, food_name, description, price, food_type, food_calories = row
+                menu_treeview.insert("", "end", values=(food_id, food_name, description, price, food_type, food_calories), tags=(food_id,))
         except sqlite3.Error as e:
             messagebox.showerror("Error", f"Error fetching food data: {e}")
 
@@ -574,7 +614,7 @@ def ViewFoodMenu():
 
         try:
             # Construct the SQL query based on the selected food type
-            sql_query = "SELECT food_id, food_name, description, price, food_type FROM food"
+            sql_query = "SELECT food_id, food_name, description, price, food_type, food_calories FROM food"
             if food_type and food_type != "all":
                 sql_query += " WHERE food_type = ?"
                 cursor.execute(sql_query, (food_type,))
@@ -584,8 +624,8 @@ def ViewFoodMenu():
 
             # Populate the treeview with fetched data
             for row in rows:
-                food_id, food_name, description, price, food_type = row
-                menu_treeview.insert("", "end", values=(food_id, food_name, description, price, food_type), tags=(food_id,))
+                food_id, food_name, description, price, food_type, food_calories= row
+                menu_treeview.insert("", "end", values=(food_id, food_name, description, price, food_type, food_calories), tags=(food_id,))
         except sqlite3.Error as e:
             messagebox.showerror("Error", f"Error fetching food data: {e}")
 
@@ -598,24 +638,24 @@ def add_to_cart():
         food_id = menu_treeview.item(selected_item[0])["tags"][0]
 
         # Fetch the food details from the database
-        cursor.execute("SELECT food_name, price FROM food WHERE food_id=?", (food_id,))
+        cursor.execute("SELECT food_name, price, food_calories FROM food WHERE food_id=?", (food_id,))
         food = cursor.fetchone()
 
         if food:
-            food_name, price = food
+            food_name, price, food_calories = food
 
             # Check if the item is already in the cart
             found_in_cart = False
             for index, item in enumerate(cart):
                 if item[0] == food_id:
                     # Update quantity if item already in cart
-                    cart[index] = (food_id, food_name, price, item[3] + 1)
+                    cart[index] = (food_id, food_name, price, food_calories, item[4] + 1)
                     found_in_cart = True
                     break
 
             if not found_in_cart:
                 # Add new item to cart with quantity 1
-                cart.append((food_id, food_name, price, 1))
+                cart.append((food_id, food_name, price, food_calories, 1 ))
 
             messagebox.showinfo("Success", f"{food_name} added to cart!")
             # For debugging: print the current contents of the cart
@@ -627,21 +667,26 @@ def add_to_cart():
 
 def ViewCart():
     def update_total_price():
-        total_price = sum(price * quantity for _, _, price, quantity in cart)
+        total_price = sum(price * quantity for _, _, price, _, quantity in cart)
         lbl_total_price.config(text=f"Total Price: RM{total_price:.2f}")
+
+    def update_total_food_calories():
+        total_food_calories = sum(food_calories * quantity for _, _, _, food_calories, quantity in cart)
+        lbl_total_food_calories.config(text=f"Total Food Calories: {total_food_calories}")
 
     def delete_selected_item():
         selected_item = cart_treeview.selection()
         if selected_item:
-            item_index = cart_treeview.index(selected_item[0])
-            food_id, food_name, price, quantity = cart[item_index]
+            item_index = int(cart_treeview.index(selected_item[0]))
+            food_id, food_name, price, food_calories, quantity = cart[item_index]
             if quantity > 1:
-                cart[item_index] = (food_id, food_name, price, quantity - 1)
-                cart_treeview.item(selected_item, values=(food_id, food_name, f"RM{price:.2f}", quantity - 1))
+                cart[item_index] = (food_id, food_name, price, food_calories, quantity - 1)
+                cart_treeview.item(selected_item, values=(food_id, food_name, f"RM{price:.2f}", food_calories, quantity - 1))
             else:
                 deleted_item = cart.pop(item_index)
                 cart_treeview.delete(selected_item[0])
             update_total_price()
+            update_total_food_calories()
             messagebox.showinfo("Success", f"Item '{food_name}' quantity has been updated in the cart.")
         else:
             messagebox.showerror("Error", "Please select an item to delete.")
@@ -656,27 +701,27 @@ def ViewCart():
     style.configure("Treeview", font=('times new roman', 14))  # Change body font
 
     # Define columns
-    columns = ("Food ID", "Food Name", "Price", "Quantity")
+    columns = ("Food ID", "Food Name", "Price", "Food Calories", "Quantity")
 
     # Create Treeview widget
     cart_treeview = ttk.Treeview(CartFrame, columns=columns, show="headings")
     cart_treeview.heading("Food ID", text="Food ID")
     cart_treeview.heading("Food Name", text="Food Name")
     cart_treeview.heading("Price", text="Price")
+    cart_treeview.heading("Food Calories", text="Food Calories")
     cart_treeview.heading("Quantity", text="Quantity")
 
     cart_treeview.pack(fill="both", expand=True)
 
-    total_price = 0
-
     for item in cart:
-        food_id, food_name, price, quantity = item
-        cart_treeview.insert("", "end", values=(food_id, food_name, f"RM{price:.2f}", quantity))
+        food_id, food_name, price, food_calories, quantity = item
+        cart_treeview.insert("", "end", values=(food_id, food_name, f"RM{price:.2f}", food_calories, quantity))
 
-    lbl_total_price = Label(CartFrame,
-                            text=f"Total Price: RM{sum(price * quantity for _, _, price, quantity in cart):.2f}",
-                            font=('times new roman', 16))
+    lbl_total_price = Label(CartFrame, text=f"Total Price: RM{sum(price * quantity for _, _, price, _, quantity in cart):.2f}", font=('times new roman', 16))
     lbl_total_price.pack(pady=10)
+
+    lbl_total_food_calories = Label(CartFrame, text=f"Total Food Calories: {sum(food_calories * quantity for _, _, _, food_calories, quantity in cart)}", font=('times new roman', 16))
+    lbl_total_food_calories.pack(pady=10)
 
     # Create a frame for the buttons
     button_frame = Frame(CartFrame)
@@ -699,14 +744,30 @@ def ViewCart():
 
 def place_order(total_price, cart_window):
     try:
+        cursor = conn.cursor()
+        # Fetch the customer ID based on the stored username and password
+        query = """
+                        SELECT customer_id
+                        FROM customer
+                        WHERE username = ? AND password = ?
+                    """
+        cursor.execute(query, (logged_in_user['username'], logged_in_user['password']))
+        customer_data = cursor.fetchone()
+
+        if not customer_data:
+            raise sqlite3.Error("Customer not found")
+
+        customer_id = customer_data[0]
         # Insert order details into the order table
         order_date = datetime.now().strftime("%Y-%m-%d")
         order_id = None
+
         for item in cart:
-            food_id, _, price, quantity = item
-            cursor.execute("INSERT INTO `order` (order_date, food_id, quantity, total_price) VALUES (?, ?, ?, ?)",
-                           (order_date, food_id, quantity, price * quantity))
+            food_id, _, price, food_calories, quantity = item
+            cursor.execute("INSERT INTO `order` (order_date, food_id, quantity, total_price, total_food_calories, customer_id) VALUES (?, ?, ?, ?, ?, ?)",
+                           (order_date, food_id, quantity, price * quantity, food_calories * quantity, customer_id))
             order_id = cursor.lastrowid  # Get the last inserted order_id
+
         conn.commit()
 
         messagebox.showinfo("Success", "Order placed successfully!")
@@ -722,8 +783,7 @@ def open_payment_window(total_price, order_id):
 
     formatted_total_price = "RM{:.2f}".format(
         float(total_price.split("RM")[1]))  # Extract numerical part of total_price
-    Label(PaymentWindow, text=f"Total Amount to Pay: {formatted_total_price}", font=('times new roman', 16)).pack(
-        pady=10)
+    Label(PaymentWindow, text=f"Total Amount to Pay: {formatted_total_price}", font=('times new roman', 16)).pack(pady=10)
 
     pay_button = Button(PaymentWindow, text="Pay",command=lambda: process_payment(float(total_price.split("RM")[1]), PaymentWindow, order_id), bg='#0010A3', fg='white')
     pay_button.bind("<Enter>", lambda e: pay_button.config(bg="#0018F2"))
@@ -779,10 +839,24 @@ def submit_review_rating(review, rating, review_window):
         messagebox.showerror("Error", "Invalid rating. Please enter a number.")
         return
 
-    customer_id = 1  # This should be dynamically fetched or passed
     review_date = datetime.now().strftime("%Y-%m-%d")
 
     try:
+        # Fetch the customer ID based on the logged-in user information
+        query = """
+                    SELECT customer_id
+                    FROM customer
+                    WHERE username = ? AND password = ?
+                """
+        cursor.execute(query, (logged_in_user['username'], logged_in_user['password']))
+        customer_data = cursor.fetchone()
+
+        if not customer_data:
+            raise sqlite3.Error("Customer not found")
+
+        customer_id = customer_data[0]
+
+        # Insert the review into the review table
         cursor.execute("INSERT INTO review (customer_id, review, rating, review_date) VALUES (?, ?, ?, ?)",
                        (customer_id, review, rating_value, review_date))
         conn.commit()
@@ -883,6 +957,62 @@ def display_view_review_rating(results):
     btn_back.bind("<Enter>", lambda e: btn_back.config(bg="#F168FF"))
     btn_back.bind("<Leave>", lambda e: btn_back.config(bg="#E061ED"))
     btn_back.pack(side='bottom', padx=10)
+
+def ViewOrderHistory():
+    global logged_in_user
+
+    OrderHistoryFrame = Toplevel()
+    OrderHistoryFrame.title("Order History")
+    OrderHistoryFrame.geometry("1920x1080+0+0")  # window size and position
+    OrderHistoryFrame.state("zoomed")
+
+    style = ttk.Style()
+    style.configure("Treeview.Heading", font=('times new roman', 16, 'bold'))  # Change heading font
+    style.configure("Treeview", font=('times new roman', 14))  # Change body font
+
+    # Define columns
+    columns = ("Order ID", "Order Date", "Food ID", "Quantity", "Total Price", "Total Food Calories")
+
+    # Create Treeview widget
+    order_history_treeview = ttk.Treeview(OrderHistoryFrame, columns=columns, show="headings")
+    order_history_treeview.heading("Order ID", text="Order ID")
+    order_history_treeview.heading("Order Date", text="Order Date")
+    order_history_treeview.heading("Food ID", text="Food ID")
+    order_history_treeview.heading("Quantity", text="Quantity")
+    order_history_treeview.heading("Total Price", text="Total Price")
+    order_history_treeview.heading("Total Food Calories", text="Total Food Calories")
+
+    order_history_treeview.pack(fill="both", expand=True)
+
+    # Fetch order history for the customer
+    try:
+        cursor = conn.cursor()
+        query = """
+            SELECT customer_id
+            FROM customer
+            WHERE username = ? AND password = ?
+        """
+        cursor.execute(query, (logged_in_user['username'], logged_in_user['password']))
+        customer_data = cursor.fetchone()
+
+        if not customer_data:
+            raise sqlite3.Error("Customer not found")
+
+        customer_id = customer_data[0]
+
+        cursor.execute(
+            "SELECT order_id, order_date, food_id, quantity, total_price, total_food_calories FROM `order` WHERE customer_id = ?",
+            (customer_id,))
+        order_history = cursor.fetchall()
+
+        for row in order_history:
+            order_history_treeview.insert("", "end", values=row)
+
+    except sqlite3.Error as e:
+        messagebox.showerror("Error", f"Error fetching order history: {e}")
+
+    lbl_order_history = Label(OrderHistoryFrame, text="Order History", font=('times new roman', 16))
+    lbl_order_history.pack(pady=10)
 
 def Logout():
     result = messagebox.askquestion('System', 'Are you sure you want to logout?', icon="warning")
@@ -1039,19 +1169,25 @@ def Register():
             messagebox.showerror("Error", "Error occurred during registration: {}".format(e))
 
 def Login():
+    global logged_in_user
     Database()
     if USERNAME_LOGIN.get() == "" or PASSWORD_LOGIN.get() == "":
         messagebox.showerror("Error", "Please complete the required field!")
     else:
         cursor.execute("SELECT * FROM `customer` WHERE `username` = ? and `password` = ?",
                        (USERNAME_LOGIN.get(), PASSWORD_LOGIN.get()))
-        if cursor.fetchone() is not None:
+        customer = cursor.fetchone()
+        if customer is not None:
+            logged_in_user['username'] = USERNAME_LOGIN.get()
+            logged_in_user['password'] = PASSWORD_LOGIN.get()
             messagebox.showinfo("Success", "You Successfully Login")
             Home()
         else:
             cursor.execute("SELECT * FROM `admin` WHERE `username` = ? and `password` = ?",
                            (USERNAME_LOGIN.get(), PASSWORD_LOGIN.get()))
             if cursor.fetchone() is not None:
+                logged_in_user['username'] = USERNAME_LOGIN.get()
+                logged_in_user['password'] = PASSWORD_LOGIN.get()
                 messagebox.showinfo("Success", "You Successfully Login")
                 AdminPanel()
             else:
