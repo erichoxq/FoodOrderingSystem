@@ -1,6 +1,6 @@
 import sqlite3
 import tkinter.messagebox as messagebox
-from tkinter import ttk, Menu, Radiobutton
+from tkinter import ttk, Radiobutton
 from tkinter import Tk, StringVar, Toplevel, Frame, Label, Entry, Button, Text, Scrollbar
 from tkinter import END
 from datetime import datetime
