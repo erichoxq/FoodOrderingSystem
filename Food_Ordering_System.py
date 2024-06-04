@@ -275,6 +275,12 @@ def FoodDashboard():
     food_treeview.column("Food Calories", width=100, anchor="center")
     food_treeview.pack(pady=20)
 
+    # Add scrollbar to the TreeView
+    sb = Scrollbar(FoodFrame, orient=VERTICAL, command=food_treeview.yview)
+    food_treeview.config(yscrollcommand=sb.set)
+    food_treeview.pack(side="left", fill="both", expand=True)
+    sb.pack(side="right", fill="y")
+    
     # Populate the treeview with food data from the database
     apply_filter("all")  # Load all data initially
 
