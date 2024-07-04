@@ -902,25 +902,6 @@ def view_review_rating():
     except sqlite3.Error as e:
         messagebox.showerror("Error", f"Error fetching reviews and ratings: {e}")
 
-def filter_reviews(results, filter_type):
-    filtered_results = []
-    for review, rating, review_date in results:
-        if filter_type == 'All':
-            filtered_results.append((review, rating, review_date))
-        elif filter_type == 'Good' and rating >= 4:
-            filtered_results.append((review, rating, review_date))
-        elif filter_type == 'Bad' and rating <= 2:
-            filtered_results.append((review, rating, review_date))
-    return filtered_results
-
-def sort_reviews(results, sort_type):
-    if sort_type == 'None':
-        return results
-    elif sort_type == 'New_to_Old':
-        return sorted(results, key=lambda x: x[2], reverse=True)  # Sort by review_date descending
-    elif sort_type == 'Old_to_New':
-        return sorted(results, key=lambda x: x[2])  # Sort by review_date ascending
-
 def display_view_review_rating(results):
     def back_to_admin_panel():
         result = messagebox.askquestion('System', 'Are you sure you want to return to the admin panel?', icon="warning")
