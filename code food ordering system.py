@@ -1,6 +1,6 @@
 import sqlite3
 import tkinter.messagebox as messagebox
-from tkinter import ttk, Radiobutton, Tk, StringVar, Toplevel, Frame, Label, Entry, Button, Text, Scrollbar, filedialog, END, IntVar, Canvas, DISABLED,NORMAL
+from tkinter import ttk, Radiobutton, Tk, StringVar, Toplevel, Frame, Label, Entry, Button, Text, Scrollbar, filedialog, END, IntVar, Canvas, DISABLED, NORMAL
 from datetime import datetime
 from PIL import Image, ImageTk
 from fpdf import FPDF
